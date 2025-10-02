@@ -118,6 +118,7 @@ class FinderTest extends MockeryTestCase
         $builder->setFilter([new Term('published', true)]);
         $builder->setWheres(['subtitle' => 'Dolor sit amet']);
         $builder->setWhereIns(['tags' => ['t1', 't2']]);
+        $builder->setWhereNotIns(['tags' => ['t1', 't2']]);
         $builder->setQuery('fuzzy search');
 
         $subject = new Finder($client->getMock(), $builder);

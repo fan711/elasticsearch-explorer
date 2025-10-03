@@ -29,6 +29,7 @@ class ScoutSearchCommandBuilder implements SearchCommandInterface
     private array $wheres = [];
 
     private array $whereIns = [];
+
     private array $whereNotIns = [];
 
     private array $fields = [];

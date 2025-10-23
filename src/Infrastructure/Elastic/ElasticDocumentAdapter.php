@@ -20,9 +20,13 @@ final class ElasticDocumentAdapter implements DocumentAdapterInterface
 
     public function bulk(BulkOperationInterface $command): callable|array
     {
-        return $this->client->bulk([
-            'body' => $command->build(),
-        ])->asArray();
+        $params = ['body' => $command->build()];
+
+        if ($refresh = config('explorer.bulk_refresh')) {
+            $params['refresh'] = $refresh;
+        }
+
+        return $this->client->bulk($params)->asArray();
     }
 
     public function update(string $index, $id, array $data): callable|array

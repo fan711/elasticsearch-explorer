@@ -296,4 +296,100 @@ final class ElasticIndexConfigurationRepositoryTest extends MockeryTestCase
         self::assertNotEquals($defaultSettings, $configArray->getSettings());
         self::assertEquals($indices['encyclopedia']['settings'], $configArray->getSettings());
     }
+
+    public function test_it_prefixes_config_name_from_class(): void
+    {
+        $indices = [TestModelWithSettings::class];
+        $repository = new ElasticIndexConfigurationRepository($indices, true, [], 'staging_');
+
+        $config = iterator_to_array($repository->getConfigurations())[0] ?? null;
+
+        self::assertNotNull($config);
+        self::assertEquals('staging_:searchable_as:', $config->getName());
+    }
+
+    public function test_it_prefixes_config_name_from_array(): void
+    {
+        $indices = [
+            'posts' => [
+                'properties' => ['title' => 'text'],
+            ],
+        ];
+        $repository = new ElasticIndexConfigurationRepository($indices, true, [], 'staging_');
+
+        $config = iterator_to_array($repository->getConfigurations())[0] ?? null;
+
+        self::assertNotNull($config);
+        self::assertEquals('staging_posts', $config->getName());
+    }
+
+    public function test_find_for_index_resolves_unprefixed_name_with_prefix(): void
+    {
+        $indices = [
+            'posts' => [
+                'properties' => ['title' => 'text'],
+            ],
+        ];
+        $repository = new ElasticIndexConfigurationRepository($indices, true, [], 'staging_');
+
+        $config = $repository->findForIndex('posts');
+
+        self::assertEquals('staging_posts', $config->getName());
+    }
+
+    public function test_find_for_index_resolves_already_prefixed_name(): void
+    {
+        $indices = [
+            'posts' => [
+                'properties' => ['title' => 'text'],
+            ],
+        ];
+        $repository = new ElasticIndexConfigurationRepository($indices, true, [], 'staging_');
+
+        $config = $repository->findForIndex('staging_posts');
+
+        self::assertEquals('staging_posts', $config->getName());
+    }
+
+    public function test_empty_prefix_does_not_change_config_name(): void
+    {
+        $indices = [
+            'posts' => [
+                'properties' => ['title' => 'text'],
+            ],
+        ];
+        $repository = new ElasticIndexConfigurationRepository($indices, true, [], '');
+
+        $config = iterator_to_array($repository->getConfigurations())[0] ?? null;
+
+        self::assertNotNull($config);
+        self::assertEquals('posts', $config->getName());
+    }
+
+    public function test_prefix_applies_to_aliased_array_config(): void
+    {
+        $indices = [
+            'posts' => [
+                'aliased' => true,
+                'properties' => ['title' => 'text'],
+            ],
+        ];
+        $repository = new ElasticIndexConfigurationRepository($indices, true, [], 'staging_');
+
+        $config = $repository->findForIndex('posts');
+
+        self::assertInstanceOf(AliasedIndexConfiguration::class, $config);
+        self::assertEquals('staging_posts', $config->getName());
+    }
+
+    public function test_prefix_applies_to_aliased_model_config(): void
+    {
+        $indices = [TestModelWithAliased::class];
+        $repository = new ElasticIndexConfigurationRepository($indices, true, [], 'staging_');
+
+        $config = $repository->findForIndex(':searchable_as:');
+
+        self::assertInstanceOf(AliasedIndexConfiguration::class, $config);
+        self::assertEquals('staging_:searchable_as:', $config->getName());
+    }
 }

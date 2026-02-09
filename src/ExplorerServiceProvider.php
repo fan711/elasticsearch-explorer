@@ -66,11 +66,16 @@ class ExplorerServiceProvider extends ServiceProvider
             ->needs('$defaultSettings')
             ->give(config('explorer.default_index_settings') ?? []);
 
+        $this->app->when(ElasticIndexConfigurationRepository::class)
+            ->needs('$prefix')
+            ->give(config('scout.prefix') ?? '');
+
         resolve(EngineManager::class)->extend('elastic', function (Application $app) {
             return new ElasticEngine(
                 $app->make(IndexAdapterInterface::class),
                 $app->make(DocumentAdapterInterface::class),
-                $app->make(IndexConfigurationRepositoryInterface::class)
+                $app->make(IndexConfigurationRepositoryInterface::class),
+                config('scout.prefix') ?? ''
             );
         });
     }

@@ -23,11 +23,23 @@ class ElasticIndexConfigurationRepository implements IndexConfigurationRepositor
 
     private array $defaultSettings;
 
-    public function __construct(array $indexConfigurations, bool $pruneOldAliases = true, array $defaultSettings = [])
+    private string $prefix;
+
+    public function __construct(array $indexConfigurations, bool $pruneOldAliases = true, array $defaultSettings = [], string $prefix = '')
     {
         $this->indexConfigurations = $indexConfigurations;
         $this->pruneOldAliases = $pruneOldAliases;
         $this->defaultSettings = $defaultSettings;
+        $this->prefix = $prefix;
+    }
+
+    private function prefixName(string $name): string
+    {
+        if ($this->prefix === '' || Str::startsWith($name, $this->prefix)) {
+            return $name;
+        }
+
+        return $this->prefix . $name;
     }
 
     /**
@@ -49,13 +61,15 @@ class ElasticIndexConfigurationRepository implements IndexConfigurationRepositor
 
     public function findForIndex(string $index): IndexConfigurationInterface
     {
+        $prefixedIndex = $this->prefixName($index);
+
         foreach ($this->getConfigurations() as $indexConfiguration) {
-            if ($indexConfiguration->getName() === $index) {
+            if ($indexConfiguration->getName() === $prefixedIndex) {
                 return $indexConfiguration;
             }
         }
 
-        throw IndexConfigurationNotFoundException::index($index);
+        throw IndexConfigurationNotFoundException::index($prefixedIndex);
     }
 
     private function getIndexConfigurationByClass(string $index): IndexConfigurationInterface
@@ -78,7 +92,8 @@ class ElasticIndexConfigurationRepository implements IndexConfigurationRepositor
 
         $settings = $class instanceof IndexSettings ? $class->indexSettings() : $this->defaultSettings;
         
-        $builder = IndexConfigurationBuilder::forExploredModel($class)
+        $builder = IndexConfigurationBuilder::named($this->prefixName($class->searchableAs()))
+            ->withModel(get_class($class))
             ->withProperties($properties)
             ->withSettings($settings);
 
@@ -93,7 +108,7 @@ class ElasticIndexConfigurationRepository implements IndexConfigurationRepositor
     {
         $useAlias = $index['aliased'] ?? false;
 
-        $builder = IndexConfigurationBuilder::named($name)
+        $builder = IndexConfigurationBuilder::named($this->prefixName($name))
             ->withProperties($index['properties'] ?? [])
             ->withSettings($index['settings'] ?? $this->defaultSettings)
             ->withModel($index['model'] ?? null);

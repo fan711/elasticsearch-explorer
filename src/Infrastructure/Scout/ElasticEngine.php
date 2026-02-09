@@ -7,6 +7,7 @@ namespace JeroenG\Explorer\Infrastructure\Scout;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\LazyCollection;
+use Illuminate\Support\Str;
 use JeroenG\Explorer\Application\DocumentAdapterInterface;
 use JeroenG\Explorer\Application\Explored;
 use JeroenG\Explorer\Application\IndexAdapterInterface;
@@ -25,16 +26,29 @@ class ElasticEngine extends Engine
 
     private DocumentAdapterInterface $documentAdapter;
 
+    private string $prefix;
+
     private static ?array $lastQuery;
 
     public function __construct(
         IndexAdapterInterface $indexAdapter,
         DocumentAdapterInterface $documentAdapter,
-        IndexConfigurationRepositoryInterface $indexConfigurationRepository
+        IndexConfigurationRepositoryInterface $indexConfigurationRepository,
+        string $prefix = ''
     ) {
         $this->indexAdapter = $indexAdapter;
         $this->documentAdapter = $documentAdapter;
         $this->indexConfigurationRepository = $indexConfigurationRepository;
+        $this->prefix = $prefix;
+    }
+
+    private function prefixIndex(string $name): string
+    {
+        if ($this->prefix === '' || Str::startsWith($name, $this->prefix)) {
+            return $name;
+        }
+
+        return $this->prefix . $name;
     }
 
     /**
@@ -53,7 +67,7 @@ class ElasticEngine extends Engine
         /** @var Explored $firstModel */
         $firstModel = $models->first();
 
-        $indexConfiguration = $this->indexConfigurationRepository->findForIndex($firstModel->searchableAs());
+        $indexConfiguration = $this->indexConfigurationRepository->findForIndex($this->prefixIndex($firstModel->searchableAs()));
         $this->indexAdapter->ensureIndex($indexConfiguration);
 
         $indexName = $indexConfiguration->getWriteIndexName();
@@ -73,7 +87,7 @@ class ElasticEngine extends Engine
         }
 
         $firstModel = $models->first();
-        $indexConfiguration = $this->indexConfigurationRepository->findForIndex($firstModel->searchableAs());
+        $indexConfiguration = $this->indexConfigurationRepository->findForIndex($this->prefixIndex($firstModel->searchableAs()));
         $this->indexAdapter->ensureIndex($indexConfiguration);
 
         $indexName = $indexConfiguration->getWriteIndexName();
@@ -91,6 +105,7 @@ class ElasticEngine extends Engine
     public function search(Builder $builder): Results
     {
         $normalizedBuilder = ScoutSearchCommandBuilder::wrap($builder);
+        $normalizedBuilder->setIndex($this->prefixIndex($normalizedBuilder->getIndex()));
         self::$lastQuery = $normalizedBuilder->buildQuery();
         return $this->documentAdapter->search($normalizedBuilder);
     }
@@ -108,6 +123,7 @@ class ElasticEngine extends Engine
         $offset = $perPage * ($page - 1);
 
         $normalizedBuilder = ScoutSearchCommandBuilder::wrap($builder);
+        $normalizedBuilder->setIndex($this->prefixIndex($normalizedBuilder->getIndex()));
         $normalizedBuilder->setOffset($offset);
         $normalizedBuilder->setLimit($perPage);
         self::$lastQuery = $normalizedBuilder->buildQuery();
@@ -198,7 +214,7 @@ class ElasticEngine extends Engine
      */
     public function flush($model): void
     {
-        $this->indexAdapter->flush($model->searchableAs());
+        $this->indexAdapter->flush($this->prefixIndex($model->searchableAs()));
     }
 
     public static function debug(): Debugger
@@ -208,13 +224,13 @@ class ElasticEngine extends Engine
 
     public function createIndex($name, array $options = []): void
     {
-        $configuration = $this->indexConfigurationRepository->findForIndex($name);
+        $configuration = $this->indexConfigurationRepository->findForIndex($this->prefixIndex($name));
         $this->indexAdapter->create($configuration);
     }
 
     public function deleteIndex($name): void
     {
-        $configuration = $this->indexConfigurationRepository->findForIndex($name);
+        $configuration = $this->indexConfigurationRepository->findForIndex($this->prefixIndex($name));
         $this->indexAdapter->delete($configuration);
     }
 
